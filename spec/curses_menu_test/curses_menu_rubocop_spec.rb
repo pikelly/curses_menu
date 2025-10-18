@@ -1,7 +1,8 @@
 require 'json'
 
+# rubocop:disable RSpec/DescribeClass
 describe 'Coding guidelines' do
-
+  # rubocop:enable RSpec/DescribeClass
   it 'makes sure code style follow Rubocop guides' do
     rubocop_report = JSON.parse(`bundle exec rubocop --format json`)
     expect(rubocop_report['summary']['offense_count']).to(

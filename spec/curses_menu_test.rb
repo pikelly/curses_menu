@@ -111,7 +111,7 @@ module CursesMenuTest
     # * *expectation* (String): The expected line
     # * *color* (Symbol): The expected color pair name
     def assert_colored_line(line_idx, expectation, color)
-      colored_line = @screenshot[line_idx][0..expectation.size - 1].map do |char_info|
+      colored_line = @screenshot[line_idx][0..(expectation.size - 1)].map do |char_info|
         [char_info[:char], char_info[:color]]
       end
       expected_colored_line = expectation.each_char.map do |chr|

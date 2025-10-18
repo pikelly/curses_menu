@@ -53,7 +53,7 @@ class CursesMenu
         print(window, "= #{title}", default_color_pair: COLORS_TITLE, pad: ' ', single_line: true)
         print(window, '', default_color_pair: COLORS_TITLE, pad: '-')
         # Display the menu
-        current_items[display_first_idx..display_first_idx + max_displayed_items - 1].each.with_index do |item_info, idx|
+        current_items[display_first_idx..(display_first_idx + max_displayed_items - 1)].each.with_index do |item_info, idx|
           selected = display_first_idx + idx == selected_idx
           # Keep a cache of titles as they can be loaded in a lazy way for performance
           item_info[:title_cached] = item_info[:title].is_a?(Proc) ? item_info[:title].call : item_info[:title] unless item_info.key?(:title_cached)

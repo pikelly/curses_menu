@@ -95,7 +95,7 @@ class CursesMenu
               force_color_pair
             end
           )
-          window << "#{text}#{cell_idx == @cells.size - 1 ? '' : @separator}"[(from < current_idx ? 0 : from - current_idx)..to - current_idx]
+          window << "#{text}#{@separator unless cell_idx == @cells.size - 1}"[(from < current_idx ? 0 : from - current_idx)..(to - current_idx)]
         end
         current_idx += full_substring_size
         break if current_idx > to
@@ -103,7 +103,7 @@ class CursesMenu
       window.color_set(force_color_pair.nil? ? default_color_pair : force_color_pair)
       if pad && window.curx < window.maxx
         nbr_chars = window.maxx - window.curx - 1
-        window << (pad * nbr_chars)[0..nbr_chars - 1]
+        window << (pad * nbr_chars)[0..(nbr_chars - 1)]
       end
       window << "\n" if add_nl
     end
@@ -123,10 +123,10 @@ class CursesMenu
         end_str = @cells[cell_id][:end_with] || ''
         @cells[cell_id][:cache_rendered_text] =
           if @cells[cell_id][:fixed_size]
-            text = "#{begin_str[0..@cells[cell_id][:fixed_size] - end_str.size - 1]}#{end_str}"
+            text = "#{begin_str[0..(@cells[cell_id][:fixed_size] - end_str.size - 1)]}#{end_str}"
             remaining_size = @cells[cell_id][:fixed_size] - text.size
             if remaining_size.positive?
-              padding = ((@cells[cell_id][:pad] || ' ') * remaining_size)[0..remaining_size - 1]
+              padding = ((@cells[cell_id][:pad] || ' ') * remaining_size)[0..(remaining_size - 1)]
               justify = @cells[cell_id][:justify] || :left
               case justify
               when :left
@@ -137,7 +137,7 @@ class CursesMenu
                 raise "Unknown justify decorator: #{justify}"
               end
             else
-              text[0..@cells[cell_id][:fixed_size] - 1]
+              text[0..(@cells[cell_id][:fixed_size] - 1)]
             end
           else
             "#{begin_str}#{end_str}"

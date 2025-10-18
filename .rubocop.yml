@@ -7,6 +7,10 @@ AllCops:
     # Bundler-generated files
     - 'vendor/**/*'
 
+# Capybara is not used and interferes with VSCode
+Capybara/RSpec:
+  Enabled: false
+
 # Limiting line length causes often less readable code.
 # Cop supports --auto-correct.
 # Configuration parameters: AutoCorrect, AllowHeredoc, AllowURI, URISchemes, IgnoreCopDirectives, IgnoredPatterns.
