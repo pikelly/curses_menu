@@ -4,19 +4,20 @@ require 'curses_menu/curses_row'
 # Provide a menu using curses with keys navigation and selection
 class CursesMenu
 
-  # Define some color pairs names.
+  # Define some default color pairs names.
   # The integer value is meaningless in itself but they all have to be different.
-  COLORS_TITLE = 1
-  COLORS_LINE = 2
-  COLORS_MENU_ITEM = 3
-  COLORS_MENU_ITEM_SELECTED = 4
-  COLORS_INPUT = 5
-  COLORS_GREEN = 6
-  COLORS_RED = 7
-  COLORS_YELLOW = 8
-  COLORS_BLUE = 9
-  COLORS_WHITE = 10
-
+  MENU_COLORS = {
+    COLORS_TITLE: [Curses::COLOR_BLACK, Curses::COLOR_CYAN],
+    COLORS_LINE: [Curses::COLOR_WHITE, Curses::COLOR_BLACK],
+    COLORS_MENU_ITEM: [Curses::COLOR_WHITE, Curses::COLOR_BLACK],
+    COLORS_MENU_ITEM_SELECTED: [Curses::COLOR_BLACK, Curses::COLOR_WHITE],
+    COLORS_INPUT: [Curses::COLOR_WHITE, Curses::COLOR_BLUE],
+    COLORS_GREEN: [Curses::COLOR_GREEN, Curses::COLOR_BLACK],
+    COLORS_RED: [Curses::COLOR_RED, Curses::COLOR_BLACK],
+    COLORS_YELLOW: [Curses::COLOR_YELLOW, Curses::COLOR_BLACK],
+    COLORS_BLUE: [Curses::COLOR_BLUE, Curses::COLOR_BLACK],
+    COLORS_WHITE: [Curses::COLOR_WHITE, Curses::COLOR_BLACK]
+  }
   # curses keys that are not defined by Curses, but that are returned by getch
   KEY_ENTER = 10
   KEY_ESCAPE = 27
@@ -161,6 +162,13 @@ class CursesMenu
     end
   end
 
+  def install_color_pairs
+    MENU_COLORS.keys.each.with_index do |name, index|
+      # Initialize the color pairs
+      Curses.init_pair(index + 1, MENU_COLORS[name][0], MENU_COLORS[name][1])
+    end
+  end
+
   # Register a new menu item.
   # This method is meant to be called from a choose_from call.
   #
@@ -195,6 +203,24 @@ class CursesMenu
     @current_menu_items << menu_item_def
   end
 
+  def self.install_curses_menu_colors(custom_colors = nil)
+    if custom_colors
+      colors = custom_colors.merge MENU_COLORS
+      # You cannot just redefine a constant without generating a warning from the compiler
+      # We remove them all so that the renumbering works
+      MENU_COLORS.each_key do |name|
+        CursesMenu.class_eval { remove_const name }
+      end
+      CursesMenu.class_eval { remove_const :MENU_COLORS }
+      CursesMenu.const_set :MENU_COLORS, colors
+    end
+
+    # Install the color constant names with an arbitrary value
+    MENU_COLORS.keys.each.with_index do |name, index|
+      CursesMenu.const_set name, (index + 1) unless CursesMenu.const_defined? name
+    end
+  end
+
   private
 
   # Display a given curses string information.
@@ -226,16 +252,7 @@ class CursesMenu
     # Use non-blocking key read, otherwise using Popen3 later blocks
     Curses.timeout = 0
     Curses.start_color
-    Curses.init_pair(COLORS_TITLE, Curses::COLOR_BLACK, Curses::COLOR_CYAN)
-    Curses.init_pair(COLORS_LINE, Curses::COLOR_WHITE, Curses::COLOR_BLACK)
-    Curses.init_pair(COLORS_MENU_ITEM, Curses::COLOR_WHITE, Curses::COLOR_BLACK)
-    Curses.init_pair(COLORS_MENU_ITEM_SELECTED, Curses::COLOR_BLACK, Curses::COLOR_WHITE)
-    Curses.init_pair(COLORS_INPUT, Curses::COLOR_WHITE, Curses::COLOR_BLUE)
-    Curses.init_pair(COLORS_GREEN, Curses::COLOR_GREEN, Curses::COLOR_BLACK)
-    Curses.init_pair(COLORS_RED, Curses::COLOR_RED, Curses::COLOR_BLACK)
-    Curses.init_pair(COLORS_YELLOW, Curses::COLOR_YELLOW, Curses::COLOR_BLACK)
-    Curses.init_pair(COLORS_BLUE, Curses::COLOR_BLUE, Curses::COLOR_BLACK)
-    Curses.init_pair(COLORS_WHITE, Curses::COLOR_WHITE, Curses::COLOR_BLACK)
+    install_color_pairs
     window = Curses.stdscr
     window.keypad = true
     @curses_initialized = true
@@ -266,3 +283,5 @@ class CursesMenu
   end
 
 end
+
+CursesMenu.install_curses_menu_colors

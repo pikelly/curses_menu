@@ -1,0 +1,40 @@
+---
+# This first bock contains the default settings for CursesMenu
+# You can override them by changing these values
+:COLORS_TITLE: 
+  - Curses::COLOR_BLACK
+  - Curses::COLOR_CYAN
+:COLORS_LINE:
+  - Curses::COLOR_WHITE
+  - Curses::COLOR_BLACK
+:COLORS_MENU_ITEM:
+  - Curses::COLOR_WHITE
+  - Curses::COLOR_BLACK
+:COLORS_MENU_ITEM_SELECTED:
+  - Curses::COLOR_BLACK
+  - Curses::COLOR_WHITE
+:COLORS_INPUT:
+  - Curses::COLOR_WHITE
+  - Curses::COLOR_BLUE
+:COLORS_GREEN:
+  - Curses::COLOR_GREEN
+  - Curses::COLOR_BLACK
+:COLORS_RED:
+  - Curses::COLOR_RED
+  - Curses::COLOR_BLACK
+:COLORS_YELLOW:
+  - Curses::COLOR_YELLOW
+  - Curses::COLOR_BLACK
+:COLORS_BLUE:
+  - Curses::COLOR_BLUE
+  - Curses::COLOR_BLACK
+:COLORS_WHITE:
+  - Curses::COLOR_WHITE
+  - Curses::COLOR_BLACK
+# Any colors declared after this point are specific to your application
+:COLORS_TESTING_ONE:
+  - Curses::COLOR_BLUE
+  - Curses::COLOR_YELLOW
+:COLORS_TESTING_TWO:
+  - Curses::COLOR_BLACK
+  - Curses::COLOR_MAGENTA
