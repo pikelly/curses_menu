@@ -34,7 +34,7 @@ module CursesMenuTest
         end
       end
       window.setpos old_y, old_x
-      # Build the map of colors per color pair acutally registered
+      # Build the map of colors per color pair actually registered
       colors_left_shift = Curses::A_COLOR.to_s(2).match(/^1+(0+)$/)[1].size
       color_pairs = CursesMenu.constants.select { |const| const.to_s.start_with?('COLORS_') }.to_h do |const|
         color_pair = CursesMenu.const_get(const)

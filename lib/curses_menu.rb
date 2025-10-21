@@ -162,6 +162,8 @@ class CursesMenu
     end
   end
 
+  # Register the color pairs from MENU_COLORS with the Curses library
+  #
   def install_color_pairs
     MENU_COLORS.keys.each.with_index do |name, index|
       # Initialize the color pairs
@@ -203,6 +205,13 @@ class CursesMenu
     @current_menu_items << menu_item_def
   end
 
+  # Register new custom colors.
+  # These can redefine the CursesMenu default colors
+  # This is also called just after 'require "curses_menu"' to install the defaults
+  # NOTE: This renumbers the color_pairs
+  #
+  # Parameters::
+  # * *custom_colors* (Hash<Symbol, Array[Curses::Color, Curses::Color]>)
   def self.install_curses_menu_colors(custom_colors = nil)
     if custom_colors
       colors = custom_colors.merge MENU_COLORS
@@ -217,7 +226,8 @@ class CursesMenu
 
     # Install the color constant names with an arbitrary value
     MENU_COLORS.keys.each.with_index do |name, index|
-      CursesMenu.const_set name, (index + 1) unless CursesMenu.const_defined? name
+      # Color_pair(0) is reserved
+      CursesMenu.const_set name, (index + 1)
     end
   end
 

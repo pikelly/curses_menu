@@ -15,7 +15,7 @@ end
 CursesMenu.install_curses_menu_colors(yaml_colors)
 
 custom_color = {
-  COLORS_TESTING_THREE: [Curses::COLOR_BLACK, Curses::COLOR_GREEN]
+  COLORS_TOPLEVEL: [Curses::COLOR_BLACK, Curses::COLOR_GREEN]
 }
 
 CursesMenu.install_curses_menu_colors custom_color
@@ -27,10 +27,10 @@ CursesMenu.new 'Top menu' do |menu|
       sub_menu.item CursesMenu::CursesRow.new(
         {
           first_cell: {
-            text: 'This uses the COLORS_TESTING_TWO color',
+            text: 'This uses the UNDERLINED COLORS_MENU_ONE color',
             justify: :left,
-            fixed_size: 38,
-            color_pair: CursesMenu::COLORS_TESTING_TWO
+            color_pair: CursesMenu::COLORS_MENU_ONE,
+            text_attr: Curses::A_UNDERLINE
           }
         }
       )
@@ -43,10 +43,20 @@ CursesMenu.new 'Top menu' do |menu|
       sub_menu.item CursesMenu::CursesRow.new(
         {
           first_cell: {
-            text: 'This uses the COLORS_TESTING_THREE color',
+            text: 'This uses the UNDERLINED COLORS_MENU_TWO color',
             justify: :left,
-            fixed_size: 40,
-            color_pair: CursesMenu::COLORS_TESTING_THREE
+            color_pair: CursesMenu::COLORS_MENU_TWO,
+            text_attr: Curses::A_UNDERLINE
+          }
+        }
+      )
+      sub_menu.item CursesMenu::CursesRow.new(
+        {
+          first_cell: {
+            text: 'This uses the DIM UNDERLINED COLORS_MENU_TWO color',
+            justify: :left,
+            color_pair: CursesMenu::COLORS_MENU_TWO,
+            text_attr: Curses::A_DIM | Curses::A_UNDERLINE
           }
         }
       )
@@ -56,10 +66,10 @@ CursesMenu.new 'Top menu' do |menu|
   menu.item CursesMenu::CursesRow.new(
     {
       first_cell: {
-        text: 'This uses the COLORS_TESTING_ONE color',
+        text: 'This uses the COLORS_TOPLEVEL color',
         justify: :left,
-        fixed_size: 38,
-        color_pair: CursesMenu::COLORS_TESTING_ONE
+        color_pair: CursesMenu::COLORS_TOPLEVEL,
+        text_attr: Curses::A_BOLD
       }
     }
   )

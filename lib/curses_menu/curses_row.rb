@@ -88,19 +88,21 @@ class CursesMenu
         full_substring_size = text.size + @separator.size
         if from < current_idx + full_substring_size
           # We have something to display from this substring
-          window.color_set(
-            if force_color_pair.nil?
-              cell_info[:color_pair] || default_color_pair
-            else
-              force_color_pair
-            end
+          window.attrset(
+            Curses.color_pair(
+              if force_color_pair.nil?
+                cell_info[:color_pair] || default_color_pair
+              else
+                force_color_pair
+              end
+            ) | (cell_info[:text_attr] || 0)
           )
           window << "#{text}#{@separator unless cell_idx == @cells.size - 1}"[(from < current_idx ? 0 : from - current_idx)..(to - current_idx)]
         end
         current_idx += full_substring_size
         break if current_idx > to
       end
-      window.color_set(force_color_pair.nil? ? default_color_pair : force_color_pair)
+      window.attrset(Curses.color_pair(force_color_pair.nil? ? default_color_pair : force_color_pair))
       if pad && window.curx < window.maxx
         nbr_chars = window.maxx - window.curx - 1
         window << (pad * nbr_chars)[0..(nbr_chars - 1)]

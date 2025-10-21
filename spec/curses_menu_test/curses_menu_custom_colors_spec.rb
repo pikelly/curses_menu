@@ -10,13 +10,21 @@ describe CursesMenu do
       menu.item CursesMenu::CursesRow.new(
         {
           cell: {
+            text: 'Spacer',
+            color_pair: CursesMenu::COLORS_TEST
+          }
+        }
+      )
+      menu.item CursesMenu::CursesRow.new(
+        {
+          cell: {
             text: 'Colored string',
             color_pair: CursesMenu::COLORS_TEST
           }
         }
       )
     end
-    assert_colored_line 3, 'Colored string', :COLORS_TEST
+    assert_colored_line 4, 'Colored string', :COLORS_TEST
   end
 
 end

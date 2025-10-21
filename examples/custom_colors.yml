@@ -32,9 +32,9 @@
   - Curses::COLOR_WHITE
   - Curses::COLOR_BLACK
 # Any colors declared after this point are specific to your application
-:COLORS_TESTING_ONE:
+:COLORS_MENU_ONE:
   - Curses::COLOR_BLUE
   - Curses::COLOR_YELLOW
-:COLORS_TESTING_TWO:
-  - Curses::COLOR_BLACK
+:COLORS_MENU_TWO:
   - Curses::COLOR_MAGENTA
+  - Curses::COLOR_BLACK
