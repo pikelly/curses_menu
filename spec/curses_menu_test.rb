@@ -10,7 +10,7 @@ module CursesMenuTest
     attr_reader :screenshot
 
     # Finalize the curses menu window
-    def curses_menu_finalize
+    def drop_window
       @screenshot = capture_screenshot
       super
     end
@@ -23,7 +23,7 @@ module CursesMenuTest
     # * Array<String>: List of lines
     def capture_screenshot
       # Curses is initialized
-      window = Curses.stdscr
+      window = win
       old_x = window.curx
       old_y = window.cury
       chars = []

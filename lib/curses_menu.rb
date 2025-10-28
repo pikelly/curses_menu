@@ -4,6 +4,8 @@ require 'curses_menu/curses_row'
 # Provide a menu using curses with keys navigation and selection
 class CursesMenu
 
+  attr_reader :win
+
   # Define some default color pairs names.
   # The integer value is meaningless in itself but they all have to be different.
   MENU_COLORS = {
@@ -34,32 +36,33 @@ class CursesMenu
   # * *&menu_items_def* (Proc): Code to be called to get the list of choices. This code can call the following methods to design the menu:
   #   * Parameters::
   #     * *menu* (CursesMenu): The CursesMenu instance
-  def initialize(title, key_presses: [], &menu_items_def)
+  def initialize(title, key_presses: [], window: nil, &menu_items_def)
     @current_menu_items = nil
-    @curses_initialized = false
     current_items = gather_menu_items(&menu_items_def)
     selected_idx = 0
     raise "Menu #{title} has no items to select" if selected_idx.nil?
 
-    window = curses_menu_initialize
+    CursesMenu.initialize_screen
+    @win = window || CursesMenu.get_window
+
     begin
-      max_displayed_items = window.maxy - 5
+      max_displayed_items = win.maxy - 5
       display_first_idx = 0
       display_first_char_idx = 0
       loop do
         # TODO: Don't redraw fixed items for performance
         # Display the title
-        window.setpos(0, 0)
-        print(window, '', default_color_pair: COLORS_TITLE, pad: '=')
-        print(window, "= #{title}", default_color_pair: COLORS_TITLE, pad: ' ', single_line: true)
-        print(window, '', default_color_pair: COLORS_TITLE, pad: '-')
+        win.setpos(0, 0)
+        print(win, '', default_color_pair: COLORS_TITLE, pad: '=')
+        print(win, "= #{title}", default_color_pair: COLORS_TITLE, pad: ' ', single_line: true)
+        print(win, '', default_color_pair: COLORS_TITLE, pad: '-')
         # Display the menu
         current_items[display_first_idx..(display_first_idx + max_displayed_items - 1)].each.with_index do |item_info, idx|
           selected = display_first_idx + idx == selected_idx
           # Keep a cache of titles as they can be loaded in a lazy way for performance
           item_info[:title_cached] = item_info[:title].is_a?(Proc) ? item_info[:title].call : item_info[:title] unless item_info.key?(:title_cached)
           print(
-            window,
+            win,
             item_info[:title_cached],
             from: display_first_char_idx,
             default_color_pair: item_info.key?(:actions) ? COLORS_MENU_ITEM : COLORS_LINE,
@@ -69,8 +72,8 @@ class CursesMenu
           )
         end
         # Display the footer
-        window.setpos(window.maxy - 2, 0)
-        print(window, '', default_color_pair: COLORS_TITLE, pad: '=')
+        win.setpos(win.maxy - 2, 0)
+        print(win, '', default_color_pair: COLORS_TITLE, pad: '=')
         display_actions = {
           'Arrows/Home/End' => 'Navigate',
           'Esc' => 'Exit'
@@ -93,7 +96,7 @@ class CursesMenu
           )
         end
         print(
-          window,
+          win,
           "= #{display_actions.sort.map { |(shortcut, name)| "#{shortcut}: #{name}" }.join(' | ')}",
           from: display_first_char_idx,
           default_color_pair: COLORS_TITLE,
@@ -101,10 +104,10 @@ class CursesMenu
           add_nl: false,
           single_line: true
         )
-        window.refresh
+        win.refresh
         user_choice = nil
         loop do
-          user_choice = key_presses.empty? ? window.getch : key_presses.shift
+          user_choice = key_presses.empty? ? win.getch : key_presses.shift
           break unless user_choice.nil?
 
           sleep 0.01
@@ -133,8 +136,9 @@ class CursesMenu
           # Keep a cache of actions as they can be loaded in a lazy way for performance
           current_items[selected_idx][:actions_cached] = current_items[selected_idx][:actions].is_a?(Proc) ? current_items[selected_idx][:actions].call : current_items[selected_idx][:actions] unless current_items[selected_idx].key?(:actions_cached)
           if current_items[selected_idx][:actions_cached]&.key?(user_choice)
-            curses_menu_finalize
+            Curses.close_screen
             result = current_items[selected_idx][:actions_cached][user_choice][:execute].call
+            win.noutrefresh
             if result.is_a?(Symbol)
               case result
               when :menu_exit
@@ -143,8 +147,7 @@ class CursesMenu
                 current_items = gather_menu_items(&menu_items_def)
               end
             end
-            window = curses_menu_initialize
-            window.clear
+            win.clear
           end
         end
         # Stay in bounds
@@ -158,13 +161,20 @@ class CursesMenu
         end
       end
     ensure
-      curses_menu_finalize
+      drop_window
     end
+  end
+
+  # Close the subwindow and inform CursesMenu that it is no longer used
+  #
+  def drop_window
+    win.close
+    CursesMenu.drop_window
   end
 
   # Register the color pairs from MENU_COLORS with the Curses library
   #
-  def install_color_pairs
+  def self.install_color_pairs
     MENU_COLORS.keys.each.with_index do |name, index|
       # Initialize the color pairs
       Curses.init_pair(index + 1, MENU_COLORS[name][0], MENU_COLORS[name][1])
@@ -231,6 +241,38 @@ class CursesMenu
     end
   end
 
+  # Initialize the curses root window and set the used subwindows count to zero
+  #
+  def self.initialize_screen
+    return if @root_window
+
+    window = Curses.init_screen
+    Curses.timeout = 0
+    Curses.start_color
+    install_color_pairs
+    window.keypad = true
+    @root_window = window
+    @window_count = 0
+  end
+
+  # Get a new subwindow and increase the used subwindows count
+  #
+  # Result::
+  # * Window: The curses menu window
+  def self.get_window(rows = @root_window.maxy, cols = @root_window.maxx, top = 0, left = 0)
+    @window_count += 1
+    window = @root_window.subwin(rows, cols, top, left)
+    window.keypad = true
+    window
+  end
+
+  # Decrease the used subwindows count and close the root window if there are no subwindows
+  #
+  def self.drop_window
+    @window_count -= 1
+    Curses.close_screen if @window_count.zero?
+  end
+
   private
 
   # Display a given curses string information.
@@ -251,28 +293,6 @@ class CursesMenu
       add_nl: add_nl,
       single_line: single_line
     )
-  end
-
-  # Initialize and get the curses menu window
-  #
-  # Result::
-  # * Window: The curses menu window
-  def curses_menu_initialize
-    Curses.init_screen
-    # Use non-blocking key read, otherwise using Popen3 later blocks
-    Curses.timeout = 0
-    Curses.start_color
-    install_color_pairs
-    window = Curses.stdscr
-    window.keypad = true
-    @curses_initialized = true
-    window
-  end
-
-  # Finalize the curses menu window
-  def curses_menu_finalize
-    Curses.close_screen if @curses_initialized
-    @curses_initialized = false
   end
 
   # Get menu items.
