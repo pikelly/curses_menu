@@ -43,7 +43,7 @@ class CursesMenu
     raise "Menu #{title} has no items to select" if selected_idx.nil?
 
     CursesMenu.initialize_screen
-    @win = window || CursesMenu.get_window
+    @win = CursesMenu.get_window(parent: window)
 
     begin
       max_displayed_items = win.maxy - 5
@@ -136,6 +136,7 @@ class CursesMenu
           # Keep a cache of actions as they can be loaded in a lazy way for performance
           current_items[selected_idx][:actions_cached] = current_items[selected_idx][:actions].is_a?(Proc) ? current_items[selected_idx][:actions].call : current_items[selected_idx][:actions] unless current_items[selected_idx].key?(:actions_cached)
           if current_items[selected_idx][:actions_cached]&.key?(user_choice)
+            win.clear
             Curses.close_screen
             result = current_items[selected_idx][:actions_cached][user_choice][:execute].call
             win.noutrefresh
@@ -162,22 +163,6 @@ class CursesMenu
       end
     ensure
       drop_window
-    end
-  end
-
-  # Close the subwindow and inform CursesMenu that it is no longer used
-  #
-  def drop_window
-    win.close
-    CursesMenu.drop_window
-  end
-
-  # Register the color pairs from MENU_COLORS with the Curses library
-  #
-  def self.install_color_pairs
-    MENU_COLORS.keys.each.with_index do |name, index|
-      # Initialize the color pairs
-      Curses.init_pair(index + 1, MENU_COLORS[name][0], MENU_COLORS[name][1])
     end
   end
 
@@ -215,65 +200,92 @@ class CursesMenu
     @current_menu_items << menu_item_def
   end
 
-  # Register new custom colors.
-  # These can redefine the CursesMenu default colors
-  # This is also called just after 'require "curses_menu"' to install the defaults
-  # NOTE: This renumbers the color_pairs
-  #
-  # Parameters::
-  # * *custom_colors* (Hash<Symbol, Array[Curses::Color, Curses::Color]>)
-  def self.install_curses_menu_colors(custom_colors = nil)
-    if custom_colors
-      colors = custom_colors.merge MENU_COLORS
-      # You cannot just redefine a constant without generating a warning from the compiler
-      # We remove them all so that the renumbering works
-      MENU_COLORS.each_key do |name|
-        CursesMenu.class_eval { remove_const name }
+  class << self
+
+    # Register the color pairs from MENU_COLORS with the Curses library
+    #
+    def install_color_pairs
+      MENU_COLORS.keys.each.with_index do |name, index|
+        # Initialize the color pairs
+        Curses.init_pair(index + 1, MENU_COLORS[name][0], MENU_COLORS[name][1])
       end
-      CursesMenu.class_eval { remove_const :MENU_COLORS }
-      CursesMenu.const_set :MENU_COLORS, colors
     end
 
-    # Install the color constant names with an arbitrary value
-    MENU_COLORS.keys.each.with_index do |name, index|
-      # Color_pair(0) is reserved
-      CursesMenu.const_set name, (index + 1)
+    # Register new custom colors.
+    # These can redefine the CursesMenu default colors
+    # This is also called just after 'require "curses_menu"' to install the defaults
+    # NOTE: This renumbers the color_pairs
+    #
+    # Parameters::
+    # * *custom_colors* (Hash<Symbol, Array[Curses::Color, Curses::Color]>)
+    def install_curses_menu_colors(custom_colors = nil)
+      if custom_colors
+        colors = custom_colors.merge MENU_COLORS
+        # You cannot just redefine a constant without generating a warning from the compiler
+        # We remove them all so that the renumbering works
+        MENU_COLORS.each_key do |name|
+          CursesMenu.class_eval { remove_const name }
+        end
+        CursesMenu.class_eval { remove_const :MENU_COLORS }
+        CursesMenu.const_set :MENU_COLORS, colors
+      end
+
+      # Install the color constant names with an arbitrary value
+      MENU_COLORS.keys.each.with_index do |name, index|
+        # Color_pair(0) is reserved
+        CursesMenu.const_set name, (index + 1)
+      end
     end
-  end
 
-  # Initialize the curses root window and set the used subwindows count to zero
-  #
-  def self.initialize_screen
-    return if @root_window
+    # Initialize the curses root window and set the used subwindows count to zero
+    #
+    # Result::
+    #  * Window: The curses menu root window
+    def initialize_screen
+      return if @root_window
 
-    window = Curses.init_screen
-    Curses.timeout = 0
-    Curses.start_color
-    install_color_pairs
-    window.keypad = true
-    @root_window = window
-    @window_count = 0
-  end
+      window = Curses.init_screen
+      Curses.timeout = 0
+      Curses.start_color
+      install_color_pairs
+      window.keypad = true
+      @root_window = window
+      @window_count = 0
+      window
+    end
 
-  # Get a new subwindow and increase the used subwindows count
-  #
-  # Result::
-  # * Window: The curses menu window
-  def self.get_window(rows = @root_window.maxy, cols = @root_window.maxx, top = 0, left = 0)
-    @window_count += 1
-    window = @root_window.subwin(rows, cols, top, left)
-    window.keypad = true
-    window
-  end
+    # Get a new subwindow and increase the used subwindows count
+    #
+    # Result::
+    # * Window: The curses menu window
+    def get_window(rows = @root_window.maxy, cols = @root_window.maxx, top = 0, left = 0, parent: nil)
+      @window_count += 1
+      window = if parent.nil?
+                 @root_window.subwin(rows, cols, top, left)
+               else
+                 parent.derwin(parent.maxy, parent.maxx, 0, 0)
+               end
+      window.keypad = true
+      window
+    end
 
-  # Decrease the used subwindows count and close the root window if there are no subwindows
-  #
-  def self.drop_window
-    @window_count -= 1
-    Curses.close_screen if @window_count.zero?
+    # Decrease the used subwindows count and close the root window if there are no subwindows
+    #
+    def drop_window
+      @window_count -= 1
+      Curses.close_screen if @window_count.zero?
+    end
+
   end
 
   private
+
+  # Close the subwindow and inform CursesMenu that it is no longer used
+  #
+  def drop_window
+    win.close
+    CursesMenu.drop_window
+  end
 
   # Display a given curses string information.
   #
