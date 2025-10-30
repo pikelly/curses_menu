@@ -2,17 +2,19 @@ require 'curses_menu'
 
 module CursesMenuTest
 
-  # Monkey-patch the curses_menu_finalize method so that it captures the menu screen before finalizing
+  # Monkey-patch the drop_window method so that it captures the menu screen before finalizing
   module CursesMenuPatch
 
     # Last screenshot taken
     # Array<String>: List of lines
-    attr_reader :screenshot
+    attr_reader :screenshot, :paneshot
 
     # Finalize the curses menu window
     def drop_window
-      @screenshot = capture_screenshot
-      super
+      @screenshot = capture_screenshot(win)
+      @paneshot = capture_screenshot(CursesMenu.pane[:window]) if CursesMenu.pane
+      win.close
+      CursesMenu.drop_window
     end
 
     private
@@ -21,7 +23,7 @@ module CursesMenuTest
     #
     # Result::
     # * Array<String>: List of lines
-    def capture_screenshot
+    def capture_screenshot(win)
       # Curses is initialized
       window = win
       old_x = window.curx
@@ -80,13 +82,14 @@ module CursesMenuTest
     #   * Parameters::
     #     * *menu* (CursesMenu): Curses menu to populate
     #     * *key_presses* (Array<Object>): Keys to possibly give to sub-menus
-    def test_menu(title: 'Menu title', keys: [], auto_exit: true)
+    def test_menu(title: 'Menu title', keys: [], auto_exit: true, window: nil)
       # TODO: Find a way to not depend on the current terminal screen, and run the tests silently.
       key_presses = auto_exit ? keys + [CursesMenu::KEY_ESCAPE] : keys
-      menu = CursesMenu.new(title, key_presses: key_presses) do |m|
+      menu = CursesMenu.new(title, key_presses: key_presses, window: window) do |m|
         yield m, key_presses
       end
       @screenshot = menu.screenshot
+      @paneshot = menu.paneshot
     end
 
     # Assert that a line of the screenshot starts with a given content
@@ -94,8 +97,9 @@ module CursesMenuTest
     # Parameters::
     # * *line_idx* (Integer): The line index of the screenshot
     # * *expectation* (String or Regexp): The expected line
-    def assert_line(line_idx, expectation)
-      line = @screenshot[line_idx][0..(expectation.is_a?(Regexp) ? -1 : expectation.size)].map { |char_info| char_info[:char] }.join
+    def assert_line(line_idx, expectation, in_pane: false)
+      screenshot = in_pane ? @paneshot : @screenshot
+      line = screenshot[line_idx][0..(expectation.is_a?(Regexp) ? -1 : expectation.size)].map { |char_info| char_info[:char] }.join
       if expectation.is_a?(Regexp)
         expect(line).to match(expectation), "Screenshot line #{line_idx} differs:\n  \"#{line}\" should be\n  \"#{expectation} \""
       else
@@ -110,8 +114,9 @@ module CursesMenuTest
     # * *line_idx* (Integer): The line index of the screenshot
     # * *expectation* (String): The expected line
     # * *color* (Symbol): The expected color pair name
-    def assert_colored_line(line_idx, expectation, color)
-      colored_line = @screenshot[line_idx][0..(expectation.size - 1)].map do |char_info|
+    def assert_colored_line(line_idx, expectation, color, in_pane: false)
+      screenshot = in_pane ? @paneshot : @screenshot
+      colored_line = screenshot[line_idx][0..(expectation.size - 1)].map do |char_info|
         [char_info[:char], char_info[:color]]
       end
       expected_colored_line = expectation.each_char.map do |chr|

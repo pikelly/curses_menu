@@ -40,37 +40,25 @@ class CursesMenu
     @current_menu_items = nil
     current_items = gather_menu_items(&menu_items_def)
     selected_idx = 0
-    raise "Menu #{title} has no items to select" if selected_idx.nil?
-
-    CursesMenu.initialize_screen
-    @win = CursesMenu.get_window(parent: window)
 
     begin
+      CursesMenu.initialize_screen
+      @win = CursesMenu.get_window(parent: window)
       max_displayed_items = win.maxy - 5
+
       display_first_idx = 0
       display_first_char_idx = 0
+      pane_items = current_items.find_all { |item| item[:pane] }
+      current_items = current_items.reject { |item| item[:pane] }
+      raise "Menu #{title} has more than one pane" if pane_items.size > 1
+      raise "Menu #{title} has no items to select" if selected_idx.nil?
+
+      CursesMenu.pane = pane_items[0] unless pane_items.empty?
+
       loop do
         # TODO: Don't redraw fixed items for performance
-        # Display the title
-        win.setpos(0, 0)
-        print(win, '', default_color_pair: COLORS_TITLE, pad: '=')
-        print(win, "= #{title}", default_color_pair: COLORS_TITLE, pad: ' ', single_line: true)
-        print(win, '', default_color_pair: COLORS_TITLE, pad: '-')
-        # Display the menu
-        current_items[display_first_idx..(display_first_idx + max_displayed_items - 1)].each.with_index do |item_info, idx|
-          selected = display_first_idx + idx == selected_idx
-          # Keep a cache of titles as they can be loaded in a lazy way for performance
-          item_info[:title_cached] = item_info[:title].is_a?(Proc) ? item_info[:title].call : item_info[:title] unless item_info.key?(:title_cached)
-          print(
-            win,
-            item_info[:title_cached],
-            from: display_first_char_idx,
-            default_color_pair: item_info.key?(:actions) ? COLORS_MENU_ITEM : COLORS_LINE,
-            force_color_pair: selected ? COLORS_MENU_ITEM_SELECTED : nil,
-            pad: selected ? ' ' : nil,
-            single_line: true
-          )
-        end
+        display_header_and_items(title, @win, current_items, display_first_idx, display_first_char_idx, max_displayed_items, selected_idx)
+
         # Display the footer
         win.setpos(win.maxy - 2, 0)
         print(win, '', default_color_pair: COLORS_TITLE, pad: '=')
@@ -79,10 +67,11 @@ class CursesMenu
           'Esc' => 'Exit'
         }
         # Keep a cache of actions as they can be loaded in a lazy way for performance
-        current_items[selected_idx][:actions_cached] = current_items[selected_idx][:actions].is_a?(Proc) ? current_items[selected_idx][:actions].call : current_items[selected_idx][:actions] unless current_items[selected_idx].key?(:actions_cached)
-        if current_items[selected_idx][:actions_cached]
+        item = current_items[selected_idx]
+        item[:actions_cached] = item[:actions].is_a?(Proc) ? item[:actions].call : item[:actions] unless item.key?(:actions_cached)
+        if item[:actions_cached]
           display_actions.merge!(
-            current_items[selected_idx][:actions_cached].to_h do |action_shortcut, action_info|
+            item[:actions_cached].to_h do |action_shortcut, action_info|
               [
                 case action_shortcut
                 when KEY_ENTER
@@ -104,6 +93,7 @@ class CursesMenu
           add_nl: false,
           single_line: true
         )
+        render_pane(CursesMenu.pane[:title], &CursesMenu.pane[:actions]) if CursesMenu.pane
         win.refresh
         user_choice = nil
         loop do
@@ -134,11 +124,12 @@ class CursesMenu
         else
           # Check actions
           # Keep a cache of actions as they can be loaded in a lazy way for performance
-          current_items[selected_idx][:actions_cached] = current_items[selected_idx][:actions].is_a?(Proc) ? current_items[selected_idx][:actions].call : current_items[selected_idx][:actions] unless current_items[selected_idx].key?(:actions_cached)
-          if current_items[selected_idx][:actions_cached]&.key?(user_choice)
+          item = current_items[selected_idx]
+          item[:actions_cached] = item[:actions].is_a?(Proc) ? item[:actions].call : item[:actions] unless item.key?(:actions_cached)
+          if item[:actions_cached]&.key?(user_choice)
             win.clear
             Curses.close_screen
-            result = current_items[selected_idx][:actions_cached][user_choice][:execute].call
+            result = item[:actions_cached][user_choice][:execute].call
             win.noutrefresh
             if result.is_a?(Symbol)
               case result
@@ -180,8 +171,9 @@ class CursesMenu
   #     * Symbol or Object: If the code returns a symbol, the menu will behave in a specific way:
   #       * *menu_exit*: the menu selection exits.
   #       * *menu_refresh*: The menu will compute again its items.
-  def item(title, actions: {}, &action)
+  def item(title, actions: {}, pane: false, window: nil, &action)
     menu_item_def = { title: title }
+    menu_item_def.merge! pane: true, window: window if pane
     all_actions =
       if action.nil?
         actions
@@ -196,11 +188,41 @@ class CursesMenu
           actions.merge(mapped_default_action)
         end
       end
-    menu_item_def[:actions] = all_actions if all_actions.is_a?(Proc) || !all_actions.empty?
+    if pane
+      menu_item_def[:actions] = action
+    elsif all_actions.is_a?(Proc) || !all_actions.empty?
+      menu_item_def[:actions] = all_actions
+    end
     @current_menu_items << menu_item_def
   end
 
+  # Register a singleton pane.
+  # There is only one so we keep it in the CursesMenu class
+  #
+  # Parameters::
+  # * *title* (String): Text to be displayed for this pane
+  def render_pane(title, &menu_items_def)
+    return unless CursesMenu.pane
+
+    @current_menu_items = []
+    current_items = gather_menu_items(&menu_items_def)
+    selected_idx = 0
+    window = CursesMenu.pane[:window]
+
+    begin
+      max_displayed_items = window.maxy - 3
+      display_first_idx = 0
+      display_first_char_idx = 0
+      # TODO: Don't redraw fixed items for performance
+      window.setpos(0, 0)
+      display_header_and_items(title, window, current_items, display_first_idx, display_first_char_idx, max_displayed_items, selected_idx)
+      window.refresh
+    end
+  end
+
   class << self
+
+    attr_accessor :pane, :root_window
 
     # Register the color pairs from MENU_COLORS with the Curses library
     #
@@ -247,9 +269,12 @@ class CursesMenu
       window = Curses.init_screen
       Curses.timeout = 0
       Curses.start_color
+      Curses.curs_set(0)
       install_color_pairs
       window.keypad = true
       @root_window = window
+      # We store a root window refence here for the rspec tests
+      CursesMenu.root_window = window
       @window_count = 0
       window
     end
@@ -258,13 +283,10 @@ class CursesMenu
     #
     # Result::
     # * Window: The curses menu window
-    def get_window(rows = @root_window.maxy, cols = @root_window.maxx, top = 0, left = 0, parent: nil)
+    def get_window(rows = nil, cols = nil, top = nil, left = nil, parent: nil)
       @window_count += 1
-      window = if parent.nil?
-                 @root_window.subwin(rows, cols, top, left)
-               else
-                 parent.derwin(parent.maxy, parent.maxx, 0, 0)
-               end
+      parent ||= @root_window
+      window = parent.derwin(rows || parent.maxy, cols || parent.maxx, top || 0, left || 0)
       window.keypad = true
       window
     end
@@ -273,7 +295,12 @@ class CursesMenu
     #
     def drop_window
       @window_count -= 1
+
       Curses.close_screen if @window_count.zero?
+      # We do not close the root window as it can only be opened once and this breaks all
+      # the tests. We rely on the ruby curses library to close it at exit.
+      # @root_window.close
+      # @root_window = nil
     end
 
   end
@@ -285,6 +312,30 @@ class CursesMenu
   def drop_window
     win.close
     CursesMenu.drop_window
+  end
+
+  # Display the title and header
+  # Prints the top line, the title and then another line
+  def display_header_and_items(title, window, current_items, display_first_idx, display_first_char_idx, max_displayed_items, selected_idx)
+    window.setpos(0, 0)
+    print(window, '', default_color_pair: COLORS_TITLE, pad: '=')
+    print(window, "= #{title}", default_color_pair: COLORS_TITLE, pad: ' ', single_line: true)
+    print(window, '', default_color_pair: COLORS_TITLE, pad: '-')
+    # Display the menu
+    current_items[display_first_idx..(display_first_idx + max_displayed_items - 1)].each.with_index do |item_info, idx|
+      selected = display_first_idx + idx == selected_idx
+      # Keep a cache of titles as they can be loaded in a lazy way for performance
+      item_info[:title_cached] = item_info[:title].is_a?(Proc) ? item_info[:title].call : item_info[:title] unless item_info.key?(:title_cached)
+      print(
+        window,
+        item_info[:title_cached],
+        from: display_first_char_idx,
+        default_color_pair: item_info.key?(:actions) ? COLORS_MENU_ITEM : COLORS_LINE,
+        force_color_pair: selected ? COLORS_MENU_ITEM_SELECTED : nil,
+        pad: selected ? ' ' : nil,
+        single_line: true
+      )
+    end
   end
 
   # Display a given curses string information.
